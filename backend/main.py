@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from core.config import settings
 from db.session import engine
 from db.base import Base
+from apis.base import api_router
 
 
 def create_tables():
@@ -11,6 +12,7 @@ def create_tables():
 def start_application():
     app = FastAPI(title=settings.PROJECT_TITLE, version=settings.PROJECT_VERSION)
     create_tables()
+    app.include_router(router=api_router)
     return app
 
 
