@@ -3,16 +3,19 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+from db.models.users import User
 from db.repository.jobs import create_new_job, retrieve_job, list_jobs, update_job_by_id, delete_job_by_id
 from db.session import get_db
 from schemas.jobs import JobCreate, ShowJob
+from apis.version1.route_login import get_current_user_from_token
 
 router = APIRouter()
 
 
 @router.post("/create-job", response_model=ShowJob)
-def create_job(job: JobCreate, db: Session = Depends(get_db)):
-    owner_id = 1
+def create_job(job: JobCreate, db: Session = Depends(get_db),
+               current_user: User = Depends(get_current_user_from_token)):
+    owner_id = current_user.id
     job = create_new_job(job=job, db=db, owner_id=owner_id)
     return job
 
@@ -43,10 +46,14 @@ def update_job(id: int, job: JobCreate, db: Session = Depends(get_db)):
 
 
 @router.delete("/delete/{id}")
-def delete_job(id: int, db: Session = Depends(get_db)):
-    owner_id = 1
-    message = delete_job_by_id(id=id, db=db, owner_id=owner_id)
-    if not message:
+def delete_job(id: int, db: Session = Depends(get_db),
+               current_user: User = Depends(get_current_user_from_token)):
+    job = retrieve_job(id=id, db=db)
+    if not job:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Job with id {id} does not exist")
-    return {"detail": "Successfully deleted data."}
+    if job.owner_id == current_user.id or current_user.is_superuser:
+        delete_job_by_id(id=id, db=db, owner_id=current_user.id)
+        return {"detail": "Job Successfully deleted"}
+    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
+                        detail=f"You are not permitted")
